@@ -14,19 +14,6 @@ function cleanup(code) {
     if (r && !r.host && r.viewers.size === 0) delete rooms[code];
 }
 
-// ── Protocol ──────────────────────────────────────────────────────────────────
-// Handshake (first line, JSON + \n):
-//   HOST:   { "role":"host",   "code":"ABCDEF", "name":"MonPseudo" }
-//   VIEWER: { "role":"viewer", "code":"ABCDEF" }
-//
-// Server response (JSON + \n):
-//   { "ok":true,  "role":"host"|"viewer", "code":"...", "hostName":"..." }
-//   { "ok":false, "reason":"room_taken"|"no_host" }
-//
-// Frames (host → server → viewers):
-//   [4 bytes LE = length][<length> bytes JPEG]
-// ─────────────────────────────────────────────────────────────────────────────
-
 const server = net.createServer((socket) => {
     socket.setNoDelay(true);
 
@@ -64,7 +51,7 @@ const server = net.createServer((socket) => {
                 r.host     = socket;
                 r.hostName = hostName;
                 socket.write(JSON.stringify({ ok: true, role: 'host', code, hostName }) + '\n');
-                console.log(`[HOST+] room=${code} name=${hostName} ip=${socket.remoteAddress}`);
+                console.log('[HOST+] room=' + code + ' name=' + hostName);
                 if (rest.length > 0) handleHostData(rest);
 
             } else if (role === 'viewer') {
@@ -74,7 +61,7 @@ const server = net.createServer((socket) => {
                 }
                 r.viewers.add(socket);
                 socket.write(JSON.stringify({ ok: true, role: 'viewer', code, hostName: r.hostName }) + '\n');
-                console.log(`[VIEW+] room=${code} viewers=${r.viewers.size} ip=${socket.remoteAddress}`);
+                console.log('[VIEW+] room=' + code + ' viewers=' + r.viewers.size);
             } else {
                 socket.destroy();
             }
@@ -82,7 +69,6 @@ const server = net.createServer((socket) => {
         }
 
         if (role === 'host') handleHostData(chunk);
-        // viewers only receive, never send frames
     });
 
     function handleHostData(chunk) {
@@ -111,7 +97,7 @@ const server = net.createServer((socket) => {
         const r = rooms[code];
         if (!r) return;
         if (role === 'host') {
-            console.log(`[HOST-] room=${code}`);
+            console.log('[HOST-] room=' + code);
             r.host = null;
             for (const v of r.viewers) {
                 try { v.write(JSON.stringify({ event: 'host_left' }) + '\n'); v.destroy(); } catch {}
@@ -119,7 +105,7 @@ const server = net.createServer((socket) => {
             r.viewers.clear();
         } else if (role === 'viewer') {
             r.viewers.delete(socket);
-            console.log(`[VIEW-] room=${code} viewers=${r.viewers.size}`);
+            console.log('[VIEW-] room=' + code + ' viewers=' + r.viewers.size);
         }
         cleanup(code);
     });
@@ -128,4 +114,4 @@ const server = net.createServer((socket) => {
 });
 
 server.listen(PORT, '0.0.0.0', () =>
-    console.log(`\n  ScreenShare Relay — port ${PORT}\n`));
+    console.log('\n  ScreenShare Relay — port ' + PORT + '\n'));
